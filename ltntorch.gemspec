@@ -20,7 +20,7 @@ Gem::Specification.new do |spec|
     "source_code_uri" => "https://github.com/mtortonesi/LTNtorch-rb"
   }
 
-  spec.files = Dir["{examples,lib,sig}/**/*", "*.md", base: __dir__]
+  spec.files = Dir["{examples,lib,sig}/**/*", "*.md", base: __dir__].grep_v(/\ATODO/)
 
   spec.required_ruby_version = ">= 3.0"
 
