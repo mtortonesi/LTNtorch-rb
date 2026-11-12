@@ -16,6 +16,14 @@
 # In the multi-digit task, each operand is a two-digit number (two images),
 # and the guard becomes 10 d1 + d2 + 10 d3 + d4 = n.
 #
+# Like LTNtorch's notebook, the models initialize their weights with
+# Kaiming/Xavier and their biases with N(0, 1) (#init_weights). With that
+# initialization, single-digit addition reaches about 48% test accuracy
+# after 20 epochs, in LTNtorch as here (checked against LTNtorch with the
+# same settings: 46.5% vs 46.4% after one epoch, 48.4% vs 48.3% after 20).
+# With PyTorch's default initialization (skipping the init_weights calls),
+# LTNtorch reaches about 98%, as reported in the LTN paper.
+#
 # The first run downloads MNIST (about 11 MB) into examples/datasets/MNIST.
 # Training follows LTNtorch's settings (20 epochs on 30,000 additions), which
 # takes a while on a CPU; set EPOCHS to train for fewer epochs, and pass
