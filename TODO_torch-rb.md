@@ -22,7 +22,14 @@ Still to do:
 
 - Rebase the open pull requests as earlier ones land: their changelog entries all add a `0.27.1 (unreleased)` section.
 - Item 2: opened as [issue #84](https://github.com/ankane/torch.rb/issues/84) (no code change planned).
+- Item 9 (`clamp(max:)`): not investigated yet.
 - After a release with the fixes: follow "Afterwards in LTNtorch-rb" in each section below.
+
+## 9. `Torch.clamp(x, max: 1.0)` fails (bug, found while building the shield in reinforce)
+
+`Torch.clamp(x, max: 1.0)` and `x.clamp(max: 1.0)` raise `No matching signatures`, also with the fixes above; `Torch.clamp(x, min: 0.0)`, `Torch.clamp(x, nil, 1.0)` and `Torch.clamp_max(x, 1.0)` work. In PyTorch, `torch.clamp(x, max=1.0)` works. Probably the arg parser does not fill the optional `min` with its default when only the later keyword is given. reinforce uses `Torch.clamp_max` meanwhile.
+
+Plan: reproduce in `test/arg_parser_test.rb` (also for other functions with two optional Scalars, to see whether it is general), find the cause in `ext/torch/ruby_arg_parser.cpp`, fix it, and open a pull request.
 
 ## 7. List defaults break functions (bug, found while fixing 6)
 
