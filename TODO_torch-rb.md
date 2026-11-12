@@ -21,7 +21,7 @@ Merged together (local branch `integration-check`, changelog conflicts only), th
 Still to do:
 
 - Rebase the open pull requests as earlier ones land: their changelog entries all add a `0.27.1 (unreleased)` section.
-- Item 2: open an issue upstream (no code change planned).
+- Item 2: opened as [issue #84](https://github.com/ankane/torch.rb/issues/84) (no code change planned).
 - After a release with the fixes: follow "Afterwards in LTNtorch-rb" in each section below.
 
 ## 7. List defaults break functions (bug, found while fixing 6)
