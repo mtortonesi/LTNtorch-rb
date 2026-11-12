@@ -7,6 +7,8 @@
 require "torch"
 
 require_relative "ltn/version"
+require_relative "ltn/ltn_object"
+require_relative "ltn/fuzzy_ops"
 
 # Logic Tensor Networks (LTN) on top of torch.rb: a Ruby port of LTNtorch
 # (https://github.com/tommasocarraro/LTNtorch).

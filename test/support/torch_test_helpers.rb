@@ -17,6 +17,15 @@ module TorchTestHelpers
     Integer(ENV.fetch("LTN_TEST_SEED", DEFAULT_SEED.to_s))
   end
 
+  # A leaf tensor that requires grad, so backward populates its #grad.
+  #
+  # Works around a torch.rb 0.27.0 bug: `Torch.tensor(data, requires_grad: true)`
+  # returns a non-leaf tensor (a reshape of the leaf it creates natively), whose
+  # #grad stays nil after backward.
+  def leaf_tensor(data, **options)
+    Torch.tensor(data, **options).requires_grad!(true)
+  end
+
   # Element-wise comparison of two tensors (or nested arrays) within an
   # absolute tolerance, for checking results against reference values.
   def all_close?(actual, expected, tolerance: 1e-6)

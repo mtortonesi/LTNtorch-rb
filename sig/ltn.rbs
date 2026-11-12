@@ -7,4 +7,139 @@ module LTN
   # The device on which LTN places the groundings of its variables.
   def self.device: () -> untyped
   def self.device=: (untyped device) -> untyped
+
+  # A grounding together with the labels of its free variables.
+  class LTNObject
+    attr_accessor value: untyped
+    attr_accessor free_vars: Array[String]
+
+    def initialize: (untyped value, Array[String] var_labels) -> void
+    def shape: () -> Array[Integer]
+  end
+
+  module FuzzyOps
+    EPS: Float
+
+    def self.pi_0: (untyped x) -> untyped
+    def self.pi_1: (untyped x) -> untyped
+    def self.check_values: (*untyped values) -> void
+    def self.check_mask: (untyped mask, untyped xs) -> void
+    def self.reduction_dims: (Integer | Array[Integer] | nil dim) -> Array[Integer]
+
+    module Stable
+      attr_accessor stable: bool
+      def initialize: (?stable: bool) -> void
+    end
+
+    class ConnectiveOperator
+      def call: (*untyped args, **untyped kwargs) -> untyped
+    end
+
+    class UnaryConnectiveOperator < ConnectiveOperator
+    end
+
+    class BinaryConnectiveOperator < ConnectiveOperator
+    end
+
+    class NotStandard < UnaryConnectiveOperator
+      def call: (untyped x) -> untyped
+    end
+
+    class NotGodel < UnaryConnectiveOperator
+      def call: (untyped x) -> untyped
+    end
+
+    class AndMin < BinaryConnectiveOperator
+      def call: (untyped x, untyped y) -> untyped
+    end
+
+    class AndProd < BinaryConnectiveOperator
+      include Stable
+      def call: (untyped x, untyped y, ?stable: bool?) -> untyped
+    end
+
+    class AndLuk < BinaryConnectiveOperator
+      def call: (untyped x, untyped y) -> untyped
+    end
+
+    class OrMax < BinaryConnectiveOperator
+      def call: (untyped x, untyped y) -> untyped
+    end
+
+    class OrProbSum < BinaryConnectiveOperator
+      include Stable
+      def call: (untyped x, untyped y, ?stable: bool?) -> untyped
+    end
+
+    class OrLuk < BinaryConnectiveOperator
+      def call: (untyped x, untyped y) -> untyped
+    end
+
+    class ImpliesKleeneDienes < BinaryConnectiveOperator
+      def call: (untyped x, untyped y) -> untyped
+    end
+
+    class ImpliesGodel < BinaryConnectiveOperator
+      def call: (untyped x, untyped y) -> untyped
+    end
+
+    class ImpliesReichenbach < BinaryConnectiveOperator
+      include Stable
+      def call: (untyped x, untyped y, ?stable: bool?) -> untyped
+    end
+
+    class ImpliesGoguen < BinaryConnectiveOperator
+      include Stable
+      def call: (untyped x, untyped y, ?stable: bool?) -> untyped
+    end
+
+    class ImpliesLuk < BinaryConnectiveOperator
+      def call: (untyped x, untyped y) -> untyped
+    end
+
+    class Equiv < BinaryConnectiveOperator
+      attr_reader and_op: BinaryConnectiveOperator
+      attr_reader implies_op: BinaryConnectiveOperator
+
+      def initialize: (BinaryConnectiveOperator and_op, BinaryConnectiveOperator implies_op) -> void
+      def call: (untyped x, untyped y) -> untyped
+    end
+
+    type dim = Integer | Array[Integer] | nil
+
+    class AggregationOperator
+      def call: (*untyped args, **untyped kwargs) -> untyped
+    end
+
+    module PMeanParameters
+      attr_accessor p: Numeric
+      attr_accessor stable: bool
+      def initialize: (?p: Numeric, ?stable: bool) -> void
+    end
+
+    class AggregMin < AggregationOperator
+      def call: (untyped xs, ?dim: dim, ?keepdim: bool, ?mask: untyped) -> untyped
+    end
+
+    class AggregMean < AggregationOperator
+      def call: (untyped xs, ?dim: dim, ?keepdim: bool, ?mask: untyped) -> untyped
+    end
+
+    class AggregPMean < AggregationOperator
+      include PMeanParameters
+      def call: (untyped xs, ?dim: dim, ?keepdim: bool, ?mask: untyped, ?p: Numeric?, ?stable: bool?) -> untyped
+    end
+
+    class AggregPMeanError < AggregationOperator
+      include PMeanParameters
+      def call: (untyped xs, ?dim: dim, ?keepdim: bool, ?mask: untyped, ?p: Numeric?, ?stable: bool?) -> untyped
+    end
+
+    class SatAgg
+      attr_reader agg_op: AggregationOperator
+
+      def initialize: (?AggregationOperator agg_op) -> void
+      def call: (*untyped closed_formulas) -> untyped
+    end
+  end
 end
