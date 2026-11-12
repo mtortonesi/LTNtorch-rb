@@ -2,6 +2,36 @@
 
 Issues in [torch.rb](https://github.com/ankane/torch.rb) found while porting LTNtorch, to address in our fork (`mtortonesi/torch.rb`, checked out at `~/code/git/torch.rb`) and propose upstream once LTNtorch-rb is done. Found on torch-rb 0.27.0 with LibTorch 2.15.0.
 
+## Status (2026-11-12)
+
+Fixed in `~/code/git/torch.rb`, one local branch per pull request, each a single commit on top of `upstream/master` (0.27.0) with tests and a changelog entry; none pushed yet:
+
+| Branch | Fixes | Notes |
+|---|---|---|
+| `fix-tensor-requires-grad-leaf` | 1 | Also re-enables `test_max`'s disabled assertion. |
+| `fix-scalar-overload-order` | 3 | Reorders 144 of 1,336 functions' overloads; numbers given for Tensor parameters (`x + 2`) become wrapped-number tensors, as in PyTorch, so results do not change. |
+| `fix-numeric-coerce` | 4 | |
+| `fix-randint-dtype` | 5 (`randint`) | Changes the dtype of existing calls: a minor version, or an issue first. |
+| `add-one-hot` | 5 (`one_hot`) | |
+| `norm-defaults` | 6 | |
+| `fix-list-defaults` | 7, 8 (found while fixing 6) | |
+
+Merged together (local branch `integration-check`, changelog conflicts only), they pass torch.rb's suite (409 tests) and LTNtorch-rb's (650 tests, plus the learning benchmark, with the same results). Without LTNtorch-rb's workarounds (`FuzzyOps.where`, tensor-first arithmetic), its parity tests fail 27 times on 0.27.0 and pass on the merged branches.
+
+Still to do:
+
+- Open the pull requests upstream (`ankane/torch.rb`): the changelog entries all add a `0.27.1 (unreleased)` section, so the second and later ones need rebasing as the first ones land.
+- Item 2: open an issue upstream (no code change planned).
+- After a release with the fixes: follow "Afterwards in LTNtorch-rb" in each section below.
+
+## 7. List defaults break functions (bug, found while fixing 6)
+
+The codegen copied list defaults from `native_functions.yaml` as is (`dim=[-2,-1]`), but the arg parser expects them in braces (`{-2,-1}`): building the parser threw `stol: no conversion` on the first call of `fft2`, `ifft2`, `rfft2`, `irfft2`, `hfft2`, `ihfft2`, `linalg.matrix_norm` and `rot90`, whatever the arguments. Upstream had disabled tests for some of them. Fixed in `fix-list-defaults`.
+
+## 8. String defaults are never used (bug, found while fixing 6)
+
+`RubyArgs::stringWithDefault` checks for a missing argument with `!args[i]`, as PyTorch does for a null `PyObject*`; but a missing argument is `Qnil` here, which is not 0, so `linalg.qr`, `quantile`, `nanquantile` and `NN.gelu` raised `TypeError` unless given their string argument. Fixed in `fix-list-defaults`.
+
 ## 1. `Torch.tensor(data, requires_grad: true)` returns a non-leaf tensor (bug)
 
 ### Symptom
