@@ -1,0 +1,80 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: "17 3 * * 1"
+
+# Each torch-rb release supports exactly one LibTorch version, and fails to
+# compile against any other ("static assertion failed: Incompatible LibTorch
+# version"). gems.locked is not committed, so the torch-rb that CI installs
+# is pinned in gems.rb instead; bump both together, following the "LibTorch
+# Compatibility" table in torch-rb's README.
+env:
+  LIBTORCH_VERSION: "2.15.0" # for torch-rb ~> 0.27.0 (see gems.rb)
+
+jobs:
+  test-linux:
+    name: Test (Ubuntu CPU)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LibTorch
+        run: |
+          curl --fail --location --retry 3 \
+            "https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-${LIBTORCH_VERSION}%2Bcpu.zip" \
+            --output "$RUNNER_TEMP/libtorch.zip"
+          unzip -q "$RUNNER_TEMP/libtorch.zip" -d "$RUNNER_TEMP"
+          echo "LIBTORCH_DIR=$RUNNER_TEMP/libtorch" >> "$GITHUB_ENV"
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "ruby"
+          bundler-cache: false
+      - name: Configure Torch.rb
+        run: bundle config set build.torch-rb --with-torch-dir="$LIBTORCH_DIR"
+      - run: bundle install --jobs 3 --retry 3
+      - name: Lint
+        run: bundle exec standardrb
+      - name: Test
+        run: bundle exec sus
+        env:
+          COVERAGE: Quiet
+      - name: Validate coverage
+        run: bundle exec bake covered:validate --minimum 0.90
+        env:
+          COVERAGE: BriefSummary
+      - run: bundle exec gem build ltntorch.gemspec --output ltntorch.gem
+      - run: |
+          gem unpack --target "$RUNNER_TEMP/ltntorch-gem" ltntorch.gem
+          gem_dir="$(find "$RUNNER_TEMP/ltntorch-gem" -mindepth 1 -maxdepth 1 -type d -print -quit)"
+          bundle exec ruby -I"${gem_dir}/lib" -e 'require "ltn"'
+
+  test-macos:
+    name: Test (macOS Apple Silicon)
+    if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'
+    # macos-14's default toolchain (Xcode 15.4) is too old to compile
+    # LibTorch's headers under torch-rb's required -std=c++20; macos-15
+    # defaults to Xcode 16.4, which builds it cleanly.
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LibTorch
+        run: |
+          curl --fail --location --retry 3 \
+            "https://download.pytorch.org/libtorch/cpu/libtorch-macos-arm64-${LIBTORCH_VERSION}.zip" \
+            --output "$RUNNER_TEMP/libtorch.zip"
+          unzip -q "$RUNNER_TEMP/libtorch.zip" -d "$RUNNER_TEMP"
+          echo "LIBTORCH_DIR=$RUNNER_TEMP/libtorch" >> "$GITHUB_ENV"
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "ruby"
+          bundler-cache: false
+      - name: Configure Torch.rb
+        run: bundle config set build.torch-rb --with-torch-dir="$LIBTORCH_DIR"
+      - run: bundle install --jobs 3 --retry 3
+      - run: bundle exec sus

@@ -1,0 +1,10 @@
+module LTN
+  VERSION: String
+
+  class Error < StandardError
+  end
+
+  # The device on which LTN places the groundings of its variables.
+  def self.device: () -> untyped
+  def self.device=: (untyped device) -> untyped
+end

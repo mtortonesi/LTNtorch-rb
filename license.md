@@ -1,6 +1,7 @@
-MIT License
+# MIT License
 
-Copyright (c) 2026 Mauro Tortonesi
+Copyright, 2026, by Mauro Tortonesi.  
+Copyright, 2021-2024, by Tommaso Carraro (LTNtorch, from which this library is ported).
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
