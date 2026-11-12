@@ -63,8 +63,8 @@ def tensor_data(tensor):
     }
 
 
-def run(op, inputs, **kwargs):
-    tensors = [torch.tensor(i, requires_grad=True) for i in inputs]
+def run(op, inputs, dtype="float32", requires_grad=True, **kwargs):
+    tensors = [torch.tensor(i, dtype=getattr(torch, dtype), requires_grad=requires_grad) for i in inputs]
     out = op(*tensors, **kwargs)
     if not out.requires_grad:
         # e.g. NotGodel, built on torch.eq: no gradient flows through it.
@@ -120,6 +120,24 @@ def connective_cases():
             op = F.Equiv(and_cls(), imp_cls())
             cases.append({"op": "Equiv", "params": {"and_op": and_name, "implies_op": imp_name}, "call": {},
                           "inputs": [X, Y], **run(op, [X, Y])})
+
+    # float64 operands, as tensors and as scalars (closed formulas), with and
+    # without gradients: guarded quantification returns float64 truth values,
+    # and these must stay float64 and keep their precision.
+    unary_ops = [(name, params, (lambda op: (lambda: op))(op)) for name, params, op in unary]
+    binary_ops = [(name, params, (lambda k, p: (lambda: k(**p)))(klass, params)) for name, params, klass in binary]
+    binary_ops.append(("Equiv", {"and_op": "AndProd", "implies_op": "ImpliesGodel"},
+                       lambda: F.Equiv(F.AndProd(), F.ImpliesGodel())))
+    for inputs_x, inputs_y in [(X, Y), (0.3, 0.6), (0.0, 1.0), (1.0, 0.25)]:
+        for requires_grad in [True, False]:
+            for name, params, make in unary_ops:
+                cases.append({"op": name, "params": params, "call": {}, "inputs": [inputs_x], "dtype": "float64",
+                              "requires_grad": requires_grad,
+                              **run(make(), [inputs_x], dtype="float64", requires_grad=requires_grad)})
+            for name, params, make in binary_ops:
+                cases.append({"op": name, "params": params, "call": {}, "inputs": [inputs_x, inputs_y],
+                              "dtype": "float64", "requires_grad": requires_grad,
+                              **run(make(), [inputs_x, inputs_y], dtype="float64", requires_grad=requires_grad)})
     return cases
 
 
@@ -145,6 +163,19 @@ def aggregator_cases():
             cases.append({"op": name, "params": params, "call": call, "inputs": [XS],
                           **run(op, [XS], dim=tuple(dim), mask=mask)})
 
+    # float64 groundings, with and without gradients (see connective_cases).
+    for name, params, klass in ops:
+        op = klass(**params)
+        for requires_grad in [True, False]:
+            for call in [{"dim": [2], "keepdim": False}, {"dim": None, "keepdim": False},
+                         {"dim": [1, 2], "keepdim": False, "mask": MASK}, {"dim": None, "keepdim": False, "mask": MASK}]:
+                kwargs = {"dim": tuple(call["dim"]) if call["dim"] is not None else None, "keepdim": call["keepdim"]}
+                if "mask" in call:
+                    kwargs["mask"] = torch.tensor(call["mask"])
+                cases.append({"op": name, "params": params, "call": call, "inputs": [XS], "dtype": "float64",
+                              "requires_grad": requires_grad,
+                              **run(op, [XS], dtype="float64", requires_grad=requires_grad, **kwargs)})
+
     # Per-call p and stable override the constructor's.
     for name, klass in [("AggregPMean", F.AggregPMean), ("AggregPMeanError", F.AggregPMeanError)]:
         op = klass(p=2, stable=True)
@@ -157,6 +188,13 @@ def aggregator_cases():
 def sat_agg_cases():
     cases = []
     truth_values = [0.2, 0.9, 1.0, 0.0, 0.65]
+    # float64 closed formulas without gradients, as guarded quantification returns.
+    for name, params, agg in [("AggregPMeanError", {"p": 2, "stable": True}, F.AggregPMeanError(p=2)),
+                              ("AggregMin", {}, F.AggregMin())]:
+        tensors = [torch.tensor(v, dtype=torch.float64) for v in truth_values]
+        out = F.SatAgg(agg)(*tensors)
+        cases.append({"agg_op": name, "params": params, "inputs": truth_values, "dtype": "float64",
+                      "requires_grad": False, "output": tensor_data(out), "grads": None})
     for name, params, agg in [
         ("AggregPMeanError", {"p": 2, "stable": True}, F.AggregPMeanError(p=2)),
         ("AggregMin", {}, F.AggregMin()),

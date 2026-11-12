@@ -25,6 +25,7 @@ module LTN
     def self.check_values: (*untyped values) -> void
     def self.check_mask: (untyped mask, untyped xs) -> void
     def self.reduction_dims: (Integer | Array[Integer] | nil dim) -> Array[Integer]
+    def self.where: (untyped condition, untyped input, untyped other) -> untyped
 
     module Stable
       attr_accessor stable: bool
@@ -141,5 +142,66 @@ module LTN
       def initialize: (?AggregationOperator agg_op) -> void
       def call: (*untyped closed_formulas) -> untyped
     end
+  end
+
+  class Constant < LTNObject
+    def initialize: (untyped value, ?trainable: bool) -> void
+  end
+
+  class Variable < LTNObject
+    attr_reader latent_var: String
+
+    def initialize: (String var_label, untyped individuals, ?add_batch_dim: bool) -> void
+  end
+
+  def self.process_ltn_objects: (Array[LTNObject] objects) -> [Array[LTNObject], Array[String], Array[Integer]]
+  def self.diag: (*Variable vars) -> Array[Variable]
+  def self.undiag: (*Variable vars) -> Array[Variable]
+
+  class LambdaModel
+    attr_reader func: untyped
+
+    def initialize: (untyped func) -> void
+    def forward: (*untyped inputs, **untyped kwargs) -> untyped
+  end
+
+  module ModelWrapper
+    attr_reader model: untyped
+
+    def initialize: (?untyped model, ?func: untyped) ?{ (*untyped) -> untyped } -> void
+  end
+
+  class Predicate
+    include ModelWrapper
+
+    def forward: (*LTNObject inputs, **untyped kwargs) -> LTNObject
+    def call: (*LTNObject inputs, **untyped kwargs) -> LTNObject
+  end
+
+  class Function
+    include ModelWrapper
+
+    def forward: (*LTNObject inputs, **untyped kwargs) -> LTNObject
+    def call: (*LTNObject inputs, **untyped kwargs) -> LTNObject
+  end
+
+  class Connective
+    attr_reader connective_op: FuzzyOps::ConnectiveOperator
+
+    def initialize: (FuzzyOps::ConnectiveOperator connective_op) -> void
+    def call: (*LTNObject operands, **untyped kwargs) -> LTNObject
+  end
+
+  class Quantifier
+    QUANTIFIERS: Hash[Symbol | String, Symbol]
+
+    attr_reader agg_op: FuzzyOps::AggregationOperator
+    attr_reader quantifier: Symbol
+
+    def initialize: (FuzzyOps::AggregationOperator agg_op, Symbol | String quantifier) -> void
+    def call: (Variable | Array[Variable] vars, LTNObject formula, ?cond_vars: (Variable | Array[Variable])?,
+               ?cond_fn: untyped, **untyped kwargs) ?{ (*LTNObject) -> untyped } -> LTNObject
+    def self.compute_mask: (LTNObject formula, Array[Variable] cond_vars, untyped cond_fn, Array[String] aggregation_vars) -> [LTNObject, LTNObject]
+    def self.transpose_vars: (LTNObject object, Array[String] new_vars_order) -> LTNObject
   end
 end

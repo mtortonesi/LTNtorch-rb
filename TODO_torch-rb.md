@@ -61,3 +61,61 @@ Making the operators element-wise would change torch.rb's public behavior (exist
 
 1. Search upstream issues for earlier discussion of this.
 2. If there is none, open an issue with the reproduction, the PyTorch behavior, and the trade-off, and offer a pull request if the maintainer agrees.
+
+## 3. 0-dim tensors dispatch to Scalar overloads, losing their dtype (bug)
+
+### Symptom
+
+```ruby
+a = Torch.tensor(0.3, dtype: :float64)
+b = Torch.tensor(0.6, dtype: :float64)
+Torch.where(Torch.tensor(true), a, b).dtype  # => :float32 (PyTorch: float64)
+Torch.where(Torch.tensor(true), 1.0, b).dtype # => :float32 (PyTorch: float64)
+```
+
+Only 0-dim tensors that do not require grad are affected; with any other shape, or with `requires_grad`, the result is right. In LTN this hits closed formulas (scalars) computed by guarded quantification, which are float64, whenever they are combined further without gradients (e.g. at evaluation time).
+
+### Root cause
+
+torch.rb's argument parser (`ext/torch/ruby_arg_parser.cpp`, `FunctionParameter::check`, `case ParameterType::SCALAR`) accepts a 0-dim tensor that does not require grad for a `Scalar` parameter, as PyTorch's does. But PyTorch also orders each function's overloads so that `Tensor` signatures are tried before `Scalar` ones (`sort_overloads` in torchgen's `gen_python_functions.py`), while torch.rb's codegen (`sort_functions` in `codegen/generate_functions.rb`) only moves `out` variants last. So for `where`, `where.Scalar(Tensor condition, Scalar self, Scalar other)` can match first, and computes in the default dtype.
+
+### Plan
+
+1. Write a failing test with the reproduction above, plus the same check for other functions with both Tensor and Scalar overloads (`sub`, `add`, `mul`, `div`, `pow`, `masked_fill`, `clamp`, `where`).
+2. Port torchgen's overload ordering to `sort_functions`: for two signatures that differ only in Tensor vs Scalar parameters, the Tensor one goes first. Regenerate the bindings and rebuild.
+3. Run the full suite, and open an upstream pull request.
+
+### Afterwards in LTNtorch-rb
+
+- Remove `LTN::FuzzyOps.where`, using `Torch.where` directly (`lib/ltn/fuzzy_ops.rb`, `lib/ltn/quantifier.rb`), keeping the float64 cases in `test/fixtures/fuzzy_ops.py` as regression tests.
+
+## 4. `Float op Tensor` converts the float to a float32 tensor (bug)
+
+### Symptom
+
+```ruby
+v = Torch.tensor([0.3, 0.7], dtype: :float64)
+((1 - 1e-4) * v).to_a # => [0.29996999502182004, 0.6999299883842468] (PyTorch: [0.29997, 0.69993])
+(v * (1 - 1e-4)).to_a # => [0.29997, 0.6999299999999999]
+(1.0 - Torch.tensor(0.3, dtype: :float64)).dtype # => :float32 (PyTorch: float64)
+```
+
+### Root cause
+
+`Tensor#coerce` (`lib/torch/tensor.rb`) returns `[Torch.tensor(other), self]`: the Ruby float becomes a float32 tensor, so its value is rounded to float32 before the operation. PyTorch treats a Python number as a "wrapped number" instead, which takes part in the operation in the dtype of the tensor. With a 0-dim tensor, the result is also float32, because of issue 3.
+
+### Plan
+
+1. Write failing tests for `Float` and `Integer` with `+`, `-`, `*`, `/` and `**` on float32, float64 and integer tensors, comparing values and dtypes with PyTorch's.
+2. Make `coerce` return a wrapper for the number whose operators call the tensor's methods with the number as a Scalar (`+`/`*` commute; `-` is `Torch.rsub(tensor, number)`; `/` is `Torch.reciprocal(tensor) * number` or `Torch.div(Torch.full_like(tensor, number), tensor)`; `**` is `Torch.pow(number, tensor)`), so the number keeps PyTorch's wrapped-number semantics.
+3. Run the full suite, and open an upstream pull request.
+
+### Afterwards in LTNtorch-rb
+
+- Nothing is required: LTN writes float/tensor arithmetic tensor-first (`x * c`, `Torch.rsub(x, 1.0)`), which is correct either way. Optionally restore the more readable `1.0 - x` forms.
+
+## 5. `Torch.norm(x, dim: 1)` needs an explicit `p` (API gap)
+
+`Torch.norm(x, dim: 1)` raises `norm() got an unexpected keyword argument 'dim'`; `Torch.norm(x, 2, dim: 1)` works. In PyTorch, `torch.norm` is a Python wrapper (`torch/functional.py`) that defaults `p` to `"fro"` and dispatches to the native overloads, whose `p` has no default when `dim` is given. torch.rb exposes the native overloads directly.
+
+Plan: add a Ruby-side `Torch.norm`/`Tensor#norm` wrapper with PyTorch's defaults (`p: "fro"`, `dim: nil`, `keepdim: false`, `dtype: nil`), with tests, or open an issue first to agree on the API, since `p` is positional in the current one.

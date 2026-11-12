@@ -20,11 +20,35 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   Python's ValueError becomes ArgumentError.
 - `LTN::LTNObject`, a grounding together with the labels of its free
   variables.
+- The core of LTN, ported from LTNtorch's `ltn.core`: `LTN::Constant`
+  (optionally trainable), `LTN::Variable`, `LTN.process_ltn_objects` (LTN
+  broadcasting), `LTN::Predicate` and `LTN::Function` (grounded by a
+  `Torch::NN::Module`, a function given as `func:`, or a block),
+  `LTN::LambdaModel`, `LTN.diag`/`LTN.undiag`, `LTN::Connective` and
+  `LTN::Quantifier` (with guarded quantification, the guard given as
+  `cond_fn:` or a block). Quantifiers take `:forall`/`:exists` (LTNtorch's
+  `"f"`/`"e"` work too).
+- Reference results for the core (broadcasting, predicates, functions,
+  connectives, quantifiers, guarded and diagonal quantification, and the
+  gradients of a small knowledge base), generated from LTNtorch by
+  `test/fixtures/core.py`; float64 and scalar cases for the fuzzy operators.
 - Reference values for every operator and aggregator, gradients included,
   generated from LTNtorch by `test/fixtures/fuzzy_ops.py`.
 - Project scaffolding: `ltntorch` gem with the `LTN` module, `LTN.device`
   configuration, sus/covered test setup, standard linting, and CI on
   Ubuntu (every push) and macOS (scheduled).
+
+### Changed (compared to LTNtorch)
+
+- `LTN.process_ltn_objects`, `Quantifier.compute_mask` and
+  `Quantifier.transpose_vars` never modify their arguments. LTNtorch rebinds
+  the value and free variables of intermediate results it processes, so
+  reusing a formula after, e.g., a connective sees the broadcast grounding;
+  the computed values are the same.
+- `LTN::Connective#call` passes keyword arguments on to its operator
+  (e.g. `stable: false`); LTNtorch accepts and ignores them.
+- `LTN::Variable` converts any float64 individuals to float32; LTNtorch
+  only converts CPU ones.
 
 ### Fixed (compared to LTNtorch)
 

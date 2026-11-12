@@ -2,6 +2,7 @@
 
 require "ltn"
 require_relative "../support/fixtures"
+require_relative "../support/torch_test_helpers"
 
 FUZZY_OPS_FIXTURE = Fixtures.load("fuzzy_ops")
 
@@ -23,15 +24,24 @@ module FuzzyOpsFixtureHelpers
   # Runs `operator` on fresh leaf tensors, then backpropagates the sum of its
   # output, as the fixture generator does.
   def run_case(operator, fixture_case)
-    inputs = fixture_case["inputs"].map { |values| TorchTestHelpers.leaf_tensor(values) }
+    inputs = fixture_case["inputs"].map { |values| input_tensor(values, fixture_case) }
     output = operator.call(*inputs, **call_options(fixture_case["call"]))
     output.sum.backward if output.requires_grad
     [output, inputs.map(&:grad)]
   end
 
+  # A tensor of the case's dtype (float32 by default) that requires grad
+  # unless the case says otherwise.
+  def input_tensor(values, fixture_case)
+    tensor = Torch.tensor(values, dtype: fixture_case.fetch("dtype", "float32").to_sym)
+    fixture_case.fetch("requires_grad", true) ? tensor.requires_grad!(true) : tensor
+  end
+
   def expect_case(output, grads, fixture_case)
     expected = fixture_case["output"]
-    expect(Fixtures.matches?(output, expected)).to be_truthy
+    matches = Fixtures.matches?(output, expected)
+    inform("got #{Fixtures.describe(output)}, expected #{expected.inspect}") unless matches
+    expect(matches).to be_truthy
     if fixture_case["grads"].nil?
       expect(output.requires_grad).to be == false
     else
@@ -48,6 +58,9 @@ module FuzzyOpsFixtureHelpers
   def self.label(fixture_case)
     details = fixture_case["params"].merge(fixture_case["call"].except("mask"))
     details["mask"] = true if fixture_case["call"].key?("mask")
+    details["dtype"] = fixture_case["dtype"] if fixture_case.key?("dtype")
+    details["requires_grad"] = fixture_case["requires_grad"] if fixture_case.key?("requires_grad")
+    details["inputs"] = fixture_case["inputs"] unless fixture_case["inputs"].first.is_a?(Array)
     "#{fixture_case["op"]} #{details.map { |k, v| "#{k}=#{v.inspect}" }.join(" ")}".strip
   end
 end
@@ -177,13 +190,15 @@ describe LTN::FuzzyOps::SatAgg do
   include FuzzyOpsFixtureHelpers
 
   FUZZY_OPS_FIXTURE["sat_agg"].each do |fixture_case|
-    it "with #{fixture_case["agg_op"]} #{fixture_case["params"]} matches LTNtorch, gradients included" do
+    it "with #{fixture_case["agg_op"]} #{fixture_case["params"]} #{fixture_case.fetch("dtype", "float32")} matches LTNtorch" do
       sat_agg = subject.new(build_operator(fixture_case["agg_op"], fixture_case["params"]))
-      inputs = fixture_case["inputs"].map { |value| TorchTestHelpers.leaf_tensor(value) }
+      inputs = fixture_case["inputs"].map { |value| input_tensor(value, fixture_case) }
       output = sat_agg.call(*inputs)
-      output.backward
 
       expect(Fixtures.matches?(output, fixture_case["output"])).to be_truthy
+      next if fixture_case["grads"].nil?
+
+      output.backward
       fixture_case["grads"].zip(inputs).each do |expected_grad, input|
         expect(Fixtures.matches?(input.grad, expected_grad)).to be_truthy
       end

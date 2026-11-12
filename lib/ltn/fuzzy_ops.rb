@@ -19,6 +19,13 @@ module LTN
   # - Python's ValueError becomes ArgumentError;
   # - SatAgg reports the shapes of non-scalar formulas instead of raising an
   #   unrelated error while building that message.
+  #
+  # Arithmetic between floats and tensors is written tensor-first
+  # (`x * c`, `Torch.rsub(x, 1.0)` for `1.0 - x`), and `where` goes through
+  # FuzzyOps.where: in torch.rb 0.27.0, `Float op Tensor` converts the float
+  # to a float32 tensor, and 0-dim tensors that do not require grad can
+  # dispatch to Scalar overloads that return float32 (see TODO_torch-rb.md).
+  # Either way, float64 truth values would lose their dtype or precision.
   module FuzzyOps
     # The epsilon of the projections #pi_0 and #pi_1, which keep the stable
     # operators away from the regions where their gradients vanish or explode.
@@ -31,7 +38,7 @@ module LTN
     # @parameter x [Torch::Tensor] truth values.
     # @returns [Torch::Tensor]
     def pi_0(x)
-      (1 - EPS) * x + EPS
+      x * (1 - EPS) + EPS
     end
 
     # Maps truth values from [0, 1] to [0, 1), so that 1 is never an input.
@@ -39,7 +46,7 @@ module LTN
     # @parameter x [Torch::Tensor] truth values.
     # @returns [Torch::Tensor]
     def pi_1(x)
-      (1 - EPS) * x
+      x * (1 - EPS)
     end
 
     # @parameter values [Array(Torch::Tensor)] truth values.
@@ -61,6 +68,28 @@ module LTN
     def check_mask(mask, xs)
       raise ArgumentError, "'xs' and 'mask' must have the same shape." if mask.shape != xs.shape
       raise ArgumentError, "'mask' must be a boolean tensor." unless mask.dtype == :bool
+    end
+
+    # Torch.where, safe for 0-dim tensors.
+    #
+    # In torch.rb 0.27.0, a 0-dim tensor that does not require grad also
+    # matches the Scalar parameters of Torch.where's overloads, and the Scalar
+    # overloads win, returning the default dtype (float32) whatever the dtype
+    # of the tensors. Lifting 0-dim tensors to shape [1] for the call avoids
+    # that; the result is the same as PyTorch's.
+    #
+    # @parameter condition [Torch::Tensor] where to take `input`.
+    # @parameter input [Torch::Tensor, Numeric] the values where `condition` holds.
+    # @parameter other [Torch::Tensor, Numeric] the values elsewhere.
+    # @returns [Torch::Tensor]
+    def where(condition, input, other)
+      arguments = [condition, input, other]
+      tensors = arguments.grep(Torch::Tensor)
+      return Torch.where(condition, input, other) unless tensors.any? { |t| t.dim == 0 }
+
+      lifted = arguments.map { |a| (a.is_a?(Torch::Tensor) && a.dim == 0) ? a.reshape([1]) : a }
+      result = Torch.where(*lifted)
+      (tensors.all? { |t| t.dim == 0 }) ? result.reshape([]) : result
     end
 
     # @parameter dim [Integer, Array(Integer), nil] the dimension(s) to reduce;
@@ -120,7 +149,7 @@ module LTN
     # Standard negation: 1 - x.
     class NotStandard < UnaryConnectiveOperator
       def call(x)
-        1.0 - x
+        Torch.rsub(x, 1.0)
       end
     end
 
@@ -182,14 +211,14 @@ module LTN
     # Kleene-Dienes implication: max(1 - x, y).
     class ImpliesKleeneDienes < BinaryConnectiveOperator
       def call(x, y)
-        Torch.maximum(1.0 - x, y)
+        Torch.maximum(Torch.rsub(x, 1.0), y)
       end
     end
 
     # Gödel implication: 1 if x <= y, y otherwise.
     class ImpliesGodel < BinaryConnectiveOperator
       def call(x, y)
-        Torch.where(Torch.le(x, y), Torch.ones_like(x), y)
+        FuzzyOps.where(Torch.le(x, y), Torch.ones_like(x), y)
       end
     end
 
@@ -199,7 +228,7 @@ module LTN
 
       def call(x, y, stable: nil)
         x, y = FuzzyOps.pi_0(x), FuzzyOps.pi_1(y) if stable?(stable)
-        1.0 - x + Torch.mul(x, y)
+        Torch.rsub(x, 1.0) + Torch.mul(x, y)
       end
     end
 
@@ -209,14 +238,14 @@ module LTN
 
       def call(x, y, stable: nil)
         x = FuzzyOps.pi_0(x) if stable?(stable)
-        Torch.where(Torch.le(x, y), Torch.ones_like(x), Torch.div(y, x))
+        FuzzyOps.where(Torch.le(x, y), Torch.ones_like(x), Torch.div(y, x))
       end
     end
 
     # Łukasiewicz implication: min(1 - x + y, 1).
     class ImpliesLuk < BinaryConnectiveOperator
       def call(x, y)
-        Torch.minimum(1.0 - x + y, Torch.ones_like(x))
+        Torch.minimum(Torch.rsub(x, 1.0) + y, Torch.ones_like(x))
       end
     end
 
@@ -265,7 +294,7 @@ module LTN
       # Mean of `xs` over `dims`, counting only the values where `mask` is true.
       def masked_mean(xs, mask, dims, keepdim)
         FuzzyOps.check_mask(mask, xs)
-        numerator = Torch.sum(Torch.where(mask.logical_not, Torch.zeros_like(xs), xs), dim: dims, keepdim: keepdim)
+        numerator = Torch.sum(FuzzyOps.where(mask.logical_not, Torch.zeros_like(xs), xs), dim: dims, keepdim: keepdim)
         denominator = Torch.sum(mask, dim: dims, keepdim: keepdim)
         Torch.div(numerator, denominator)
       end
@@ -299,7 +328,7 @@ module LTN
           FuzzyOps.check_mask(mask, xs)
           # 1 is the largest truth value, so masked-out values never win the
           # minimum. As in LTNtorch, this turns the result into float64.
-          xs = Torch.where(mask.logical_not, 1.0, xs.double)
+          xs = FuzzyOps.where(mask.logical_not, 1.0, xs.double)
         end
         Torch.amin(xs, dim: FuzzyOps.reduction_dims(dim), keepdim: keepdim)
       end
@@ -343,9 +372,9 @@ module LTN
         dims = FuzzyOps.reduction_dims(dim)
 
         xs = FuzzyOps.pi_1(xs) if stable
-        xs = Torch.pow(1.0 - xs, p)
+        xs = Torch.pow(Torch.rsub(xs, 1.0), p)
         mean = mask.nil? ? Torch.mean(xs, dim: dims, keepdim: keepdim) : masked_mean(xs, mask, dims, keepdim)
-        1.0 - Torch.pow(mean, 1.0 / p)
+        Torch.rsub(Torch.pow(mean, 1.0 / p), 1.0)
       end
     end
 

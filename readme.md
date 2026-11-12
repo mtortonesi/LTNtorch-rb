@@ -15,8 +15,11 @@ neural networks, and the axioms of a knowledge base are evaluated with
 differentiable fuzzy logic semantics. Maximizing the satisfaction of the
 axioms becomes the training objective.
 
-**Status:** under active development. The port is not functional yet; see
-`changelog.md` for progress.
+**Status:** under active development. The core of LTN (groundings,
+predicates, functions, connectives, quantifiers, guarded and diagonal
+quantification, and the fuzzy operators) is ported, and checked against
+LTNtorch's results; see `changelog.md` for progress and for the
+differences from LTNtorch.
 
 ## Prerequisites
 
@@ -50,6 +53,59 @@ Then:
 ```ruby
 require "ltn"
 ```
+
+## Usage
+
+Learn a predicate `A` from a knowledge base saying that it holds for one
+cluster of points and not for another:
+
+```ruby
+require "ltn"
+
+positives = Torch.randn(50, 2) * 0.5 + 1.0
+negatives = Torch.randn(50, 2) * 0.5 - 1.0
+
+# A learnable predicate: any Torch::NN::Module returning truth values in [0, 1].
+a = LTN::Predicate.new(
+  Torch::NN::Sequential.new(
+    Torch::NN::Linear.new(2, 8), Torch::NN::ELU.new,
+    Torch::NN::Linear.new(8, 1), Torch::NN::Sigmoid.new
+  )
+)
+
+not_ = LTN::Connective.new(LTN::FuzzyOps::NotStandard.new)
+forall = LTN::Quantifier.new(LTN::FuzzyOps::AggregPMeanError.new(p: 2), :forall)
+sat_agg = LTN::FuzzyOps::SatAgg.new
+
+x_pos = LTN::Variable.new("x_pos", positives)
+x_neg = LTN::Variable.new("x_neg", negatives)
+optimizer = Torch::Optim::Adam.new(a.parameters, lr: 0.01)
+
+200.times do
+  optimizer.zero_grad
+  # forall x_pos: A(x_pos), and forall x_neg: not A(x_neg)
+  sat = sat_agg.call(
+    forall.call(x_pos, a.call(x_pos)),
+    forall.call(x_neg, not_.call(a.call(x_neg)))
+  )
+  (1.0 - sat).backward
+  optimizer.step
+end
+```
+
+Predicates and functions can also be grounded by a block, e.g.
+`LTN::Predicate.new { |x| Torch.sigmoid(x.sum(1)) }`, and quantifiers can be
+guarded by a condition on the individuals:
+
+```ruby
+forall.call(x, a.call(x), cond_vars: [x]) { |x| x.value.sum(1).gt(0.0) }
+```
+
+The API follows LTNtorch's, so its
+[documentation](https://tommasocarraro.github.io/LTNtorch/) and
+[tutorials](https://github.com/tommasocarraro/LTNtorch/tree/main/tutorials)
+apply, with Ruby conventions: optional arguments are keywords, symbols are
+called with `#call`, and quantifiers take `:forall`/`:exists`.
 
 ## Contributing
 
