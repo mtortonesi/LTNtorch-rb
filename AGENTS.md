@@ -21,5 +21,14 @@ torch.rb 0.27.0 differs from PyTorch in ways that silently change results (see `
 - Use `LTN::FuzzyOps.where` instead of `Torch.where`: with 0-dim tensors that do not require grad, `Torch.where` returns float32.
 - `Torch.tensor(data, requires_grad: true)` returns a non-leaf tensor that never receives gradients: use `Torch.tensor(data).requires_grad!(true)`.
 - `Torch.norm(x, dim: 1)` fails: pass `p` explicitly, `Torch.norm(x, 2, dim: 1)`.
+- `Torch.randint` returns float32 (PyTorch: int64): pass `dtype: :int64` for indices or labels. There is no `one_hot`: use `Torch.eye(n)[labels]`.
+
+## LTN pitfalls
+
+- `LTN.diag` changes the labels of its variables, so call it before building the formulas that use them, as in `forall.call(LTN.diag(x, y), p.call(x, y))` (where Ruby evaluates the arguments left to right); a formula built earlier keeps the variables' own labels, and the quantifier leaves them free.
+
+## Examples
+
+`examples/` and `tutorials/` port LTNtorch's. Each example is a class whose `#run(epochs:)` returns its final metrics (`test/examples.rb` runs them briefly, `benchmark/examples.rb` fully); `LTNExamples.main` runs it with LTNtorch's settings when the file is executed. Coverage (`config/covered.rb`) only measures `lib/`.
 
 Reference values come from LTNtorch itself: `test/fixtures/*.py` generate `test/fixtures/*.json` (see their headers), and new behavior should get a fixture case there, float64 and 0-dim variants included.

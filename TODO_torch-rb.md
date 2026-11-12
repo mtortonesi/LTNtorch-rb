@@ -114,7 +114,12 @@ v = Torch.tensor([0.3, 0.7], dtype: :float64)
 
 - Nothing is required: LTN writes float/tensor arithmetic tensor-first (`x * c`, `Torch.rsub(x, 1.0)`), which is correct either way. Optionally restore the more readable `1.0 - x` forms.
 
-## 5. `Torch.norm(x, dim: 1)` needs an explicit `p` (API gap)
+## 5. Smaller API differences
+
+- `Torch.randint(low, high, size)` returns float32 tensors; PyTorch returns int64. LTN's examples pass `dtype: :int64`. Check whether this is deliberate upstream (torch.rb may default every factory to float32) before proposing a change.
+- `torch.nn.functional.one_hot` has no counterpart (`Torch::NN::Functional.one_hot` and `Torch.one_hot` are undefined); `Torch.eye(n)[labels]` works around it. Plan: add `Torch::NN::Functional.one_hot(tensor, num_classes: -1)`, binding the native `one_hot`, with tests.
+
+## 6. `Torch.norm(x, dim: 1)` needs an explicit `p` (API gap)
 
 `Torch.norm(x, dim: 1)` raises `norm() got an unexpected keyword argument 'dim'`; `Torch.norm(x, 2, dim: 1)` works. In PyTorch, `torch.norm` is a Python wrapper (`torch/functional.py`) that defaults `p` to `"fro"` and dispatches to the native overloads, whose `p` has no default when `dim` is given. torch.rb exposes the native overloads directly.
 

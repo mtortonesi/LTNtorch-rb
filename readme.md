@@ -101,6 +101,30 @@ guarded by a condition on the individuals:
 forall.call(x, a.call(x), cond_vars: [x]) { |x| x.value.sum(1).gt(0.0) }
 ```
 
+## Examples and tutorials
+
+`examples/` contains Ruby ports of LTNtorch's seven examples, and
+`tutorials/` of its four tutorials, as scripts:
+
+| Script | What it shows |
+|---|---|
+| `tutorials/1_grounding_non_logical_symbols.rb` | Constants, predicates, functions and variables |
+| `tutorials/2_grounding_connectives.rb` | Connectives, quantifiers, diagonal and guarded quantification |
+| `tutorials/2b_operators_and_gradients.rb` | Choosing fuzzy operators, and their gradients |
+| `tutorials/3_knowledgebase_and_learning.rb` | Learning from a knowledge base, in mini-batches too |
+| `examples/1_binary_classification.rb` | A predicate learned from positive and negative examples |
+| `examples/2_multi_class_single_label_classification.rb` | Iris, with a softmax classifier as predicate |
+| `examples/3_multi_class_multi_label_classification.rb` | Crabs, with mutually exclusive labels, and queries |
+| `examples/4_semi_supervised_pattern_recognition.rb` | MNIST digits learned from their sums only (downloads MNIST) |
+| `examples/5_regression.rb` | Real estate prices, with a smooth equality and diagonal quantification |
+| `examples/6_clustering.rb` | Clustering without labels, with guarded quantification |
+| `examples/7_learning_embeddings_with_ltn.rb` | Smokers, friends and cancer: learned embeddings of individuals |
+
+Run them with, e.g., `bundle exec ruby examples/6_clustering.rb`; set
+`EPOCHS` to train for fewer epochs. Their results are close to those of
+LTNtorch's notebooks, and `bundle exec sus benchmark/examples.rb` checks
+that they keep learning.
+
 The API follows LTNtorch's, so its
 [documentation](https://tommasocarraro.github.io/LTNtorch/) and
 [tutorials](https://github.com/tommasocarraro/LTNtorch/tree/main/tutorials)

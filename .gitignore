@@ -12,3 +12,4 @@
 gems.locked
 .projections.json
 .byebug_history
+/examples/datasets/MNIST/

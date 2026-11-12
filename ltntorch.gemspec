@@ -15,12 +15,14 @@ Gem::Specification.new do |spec|
 
   spec.homepage = "https://github.com/mtortonesi/LTNtorch-rb"
 
+  # homepage_uri would duplicate spec.homepage, which RubyGems warns about.
   spec.metadata = {
-    "homepage_uri" => "https://github.com/mtortonesi/LTNtorch-rb",
     "source_code_uri" => "https://github.com/mtortonesi/LTNtorch-rb"
   }
 
-  spec.files = Dir["{examples,lib,sig}/**/*", "*.md", base: __dir__].grep_v(/\ATODO/)
+  spec.files = Dir["{examples,lib,sig,tutorials}/**/*", "*.md", base: __dir__]
+    .grep_v(/\ATODO/)
+    .grep_v(%r{\Aexamples/datasets/MNIST(/|\z)}) # downloaded by example 4
 
   spec.required_ruby_version = ">= 3.0"
 

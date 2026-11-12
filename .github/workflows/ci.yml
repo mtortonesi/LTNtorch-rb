@@ -53,6 +53,29 @@ jobs:
           gem_dir="$(find "$RUNNER_TEMP/ltntorch-gem" -mindepth 1 -maxdepth 1 -type d -print -quit)"
           bundle exec ruby -I"${gem_dir}/lib" -e 'require "ltn"'
 
+  benchmark:
+    name: Learning benchmark (Ubuntu CPU)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install LibTorch
+        run: |
+          curl --fail --location --retry 3 \
+            "https://download.pytorch.org/libtorch/cpu/libtorch-shared-with-deps-${LIBTORCH_VERSION}%2Bcpu.zip" \
+            --output "$RUNNER_TEMP/libtorch.zip"
+          unzip -q "$RUNNER_TEMP/libtorch.zip" -d "$RUNNER_TEMP"
+          echo "LIBTORCH_DIR=$RUNNER_TEMP/libtorch" >> "$GITHUB_ENV"
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "ruby"
+          bundler-cache: false
+      - name: Configure Torch.rb
+        run: bundle config set build.torch-rb --with-torch-dir="$LIBTORCH_DIR"
+      - run: bundle install --jobs 3 --retry 3
+      - name: Seeded learning benchmark of the examples
+        run: bundle exec sus --verbose benchmark/examples.rb
+
   test-macos:
     name: Test (macOS Apple Silicon)
     if: github.event_name == 'workflow_dispatch' || github.event_name == 'schedule'

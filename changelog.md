@@ -28,6 +28,14 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   `LTN::Quantifier` (with guarded quantification, the guard given as
   `cond_fn:` or a block). Quantifiers take `:forall`/`:exists` (LTNtorch's
   `"f"`/`"e"` work too).
+- Ruby ports of LTNtorch's seven examples (`examples/`, with the Iris,
+  crabs and real estate datasets; MNIST is downloaded on first use) and four
+  tutorials (`tutorials/`), smoke-tested by `test/examples.rb`, plus a
+  seeded learning benchmark of the examples (`benchmark/examples.rb`), run
+  by CI as a separate job.
+- `test/ltn/training_parity.rb`: training a small knowledge base from the
+  same data and weights follows LTNtorch's loss at every epoch, from
+  `test/fixtures/training.py`.
 - Reference results for the core (broadcasting, predicates, functions,
   connectives, quantifiers, guarded and diagonal quantification, and the
   gradients of a small knowledge base), generated from LTNtorch by
