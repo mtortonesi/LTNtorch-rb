@@ -115,7 +115,7 @@ forall.call(x, a.call(x), cond_vars: [x]) { |x| x.value.sum(1).gt(0.0) }
 | `examples/1_binary_classification.rb` | A predicate learned from positive and negative examples |
 | `examples/2_multi_class_single_label_classification.rb` | Iris, with a softmax classifier as predicate |
 | `examples/3_multi_class_multi_label_classification.rb` | Crabs, with mutually exclusive labels, and queries |
-| `examples/4_semi_supervised_pattern_recognition.rb` | MNIST digits learned from their sums only (downloads MNIST) |
+| `examples/4_semi_supervised_pattern_recognition.rb` | MNIST digits learned from their sums only (downloads MNIST; `--default-init` for the LTN paper's accuracy) |
 | `examples/5_regression.rb` | Real estate prices, with a smooth equality and diagonal quantification |
 | `examples/6_clustering.rb` | Clustering without labels, with guarded quantification |
 | `examples/7_learning_embeddings_with_ltn.rb` | Smokers, friends and cancer: learned embeddings of individuals |

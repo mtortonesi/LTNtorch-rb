@@ -33,6 +33,10 @@ and this project follows [Semantic Versioning](https://semver.org/spec/v2.0.0.ht
   tutorials (`tutorials/`), smoke-tested by `test/examples.rb`, plus a
   seeded learning benchmark of the examples (`benchmark/examples.rb`), run
   by CI as a separate job.
+- Example 4 takes `--default-init` (`init_weights: false`) to keep PyTorch's
+  default weight initialization: about 98% test accuracy on MNIST addition,
+  as in the LTN paper, instead of the about 48% of LTNtorch's notebook
+  initialization, which stays the default.
 - `test/ltn/training_parity.rb`: training a small knowledge base from the
   same data and weights follows LTNtorch's loss at every epoch, from
   `test/fixtures/training.py`.

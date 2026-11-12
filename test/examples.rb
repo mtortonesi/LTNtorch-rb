@@ -36,15 +36,24 @@ describe "the examples" do
     expect_metrics(metrics, [:train_sat, :test_sat, :train_accuracy, :test_accuracy, :phi1, :phi2, :phi3])
   end
 
-  [:single, :multi].each do |task|
-    it "run #{task}-digit MNIST addition, on random images" do
+  [[:single, true], [:multi, true], [:single, false]].each do |task, init_weights|
+    it "run #{task}-digit MNIST addition, on random images, with init_weights: #{init_weights}" do
       images = ->(n) { Torch.randint(0, 256, [n, 28, 28], dtype: :uint8) }
       digits = ->(n) { Torch.randint(0, 10, [n], dtype: :int64) }
       data = {train: [images.call(128), digits.call(128)], test: [images.call(64), digits.call(64)]}
-      example = LTNExamples::SemiSupervisedPatternRecognition.new(task: task, output: StringIO.new, data: data)
+      example = LTNExamples::SemiSupervisedPatternRecognition.new(task: task, output: StringIO.new, data: data,
+        init_weights: init_weights)
 
       expect_metrics(example.run(epochs: 1, batch_size: 16), [:train_sat, :test_sat, :train_accuracy, :test_accuracy])
     end
+  end
+
+  it "initialize the MNIST classifier's biases with N(0, 1) only with init_weights" do
+    classifier = LTNExamples::SemiSupervisedPatternRecognition::SingleDigitClassifier
+    bias_std = ->(model) { model.named_parameters.select { |name, _| name.end_with?("linear_layers.0.bias") }.values.map { |b| b.std.item } }
+
+    expect(bias_std.call(classifier.new(init_weights: true)).min).to be > 0.5
+    expect(bias_std.call(classifier.new(init_weights: false)).max).to be < 0.2
   end
 
   it "run regression" do

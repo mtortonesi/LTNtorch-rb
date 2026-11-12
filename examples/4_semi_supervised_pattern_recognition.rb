@@ -22,14 +22,15 @@
 # after 20 epochs, in LTNtorch as here (checked against LTNtorch with the
 # same settings: 46.5% vs 46.4% after one epoch, 48.4% vs 48.3% after 20).
 # With PyTorch's default initialization (skipping the init_weights calls),
-# LTNtorch reaches about 98%, as reported in the LTN paper.
+# LTNtorch reaches about 98%, as reported in the LTN paper: pass
+# `--default-init` to train that way.
 #
 # The first run downloads MNIST (about 11 MB) into examples/datasets/MNIST.
 # Training follows LTNtorch's settings (20 epochs on 30,000 additions), which
 # takes a while on a CPU; set EPOCHS to train for fewer epochs, and pass
 # `multi` to run the multi-digit task instead of the single-digit one.
 #
-#   bundle exec ruby examples/4_semi_supervised_pattern_recognition.rb [single|multi]
+#   bundle exec ruby examples/4_semi_supervised_pattern_recognition.rb [single|multi] [--default-init]
 
 require_relative "support/example"
 require_relative "support/mnist"
@@ -38,7 +39,10 @@ module LTNExamples
   class SemiSupervisedPatternRecognition
     # Convolutional embeddings of MNIST images.
     class MNISTConv < Torch::NN::Module
-      def initialize(conv_channels_sizes: [1, 6, 16], kernel_sizes: [5, 5], linear_layers_sizes: [256, 100])
+      # @parameter init_weights [Boolean] whether to initialize the weights as
+      #   LTNtorch's example does (see #init_weights), or keep PyTorch's defaults.
+      def initialize(conv_channels_sizes: [1, 6, 16], kernel_sizes: [5, 5], linear_layers_sizes: [256, 100],
+        init_weights: true)
         super()
         @conv_layers = Torch::NN::ModuleList.new(
           conv_channels_sizes.each_cons(2).zip(kernel_sizes).map { |(input, output), kernel| Torch::NN::Conv2d.new(input, output, kernel) }
@@ -52,7 +56,7 @@ module LTNExamples
         @batch_norm_layers = Torch::NN::ModuleList.new(
           linear_layers_sizes.drop(1).map { |size| Torch::NN::BatchNorm1d.new(size) }
         )
-        init_weights
+        self.init_weights if init_weights
       end
 
       def forward(x)
@@ -64,8 +68,7 @@ module LTNExamples
         x
       end
 
-      private
-
+      # Kaiming (convolutions) and Xavier (linear layers) weights, and N(0, 1) biases.
       def init_weights
         @conv_layers.each do |layer|
           Torch::NN::Init.kaiming_uniform!(layer.weight)
@@ -80,9 +83,10 @@ module LTNExamples
 
     # Returns the logits of the ten digits for an MNIST image.
     class SingleDigitClassifier < Torch::NN::Module
-      def initialize(layers_sizes: [100, 84, 10])
+      # @parameter init_weights [Boolean] as for MNISTConv.
+      def initialize(layers_sizes: [100, 84, 10], init_weights: true)
         super()
-        @mnistconv = MNISTConv.new
+        @mnistconv = MNISTConv.new(init_weights: init_weights)
         @tanh = Torch::NN::Tanh.new
         @linear_layers = Torch::NN::ModuleList.new(
           layers_sizes.each_cons(2).map { |input, output| Torch::NN::Linear.new(input, output) }
@@ -90,10 +94,7 @@ module LTNExamples
         @batch_norm_layers = Torch::NN::ModuleList.new(
           layers_sizes.drop(1).map { |size| Torch::NN::BatchNorm1d.new(size) }
         )
-        @linear_layers.each do |layer|
-          Torch::NN::Init.xavier_uniform!(layer.weight)
-          Torch::NN::Init.normal!(layer.bias)
-        end
+        self.init_weights if init_weights
       end
 
       def forward(x)
@@ -103,6 +104,14 @@ module LTNExamples
           x = @tanh.call(@batch_norm_layers.to_a[i].call(layer.call(x)))
         end
         linear_layers.last.call(x)
+      end
+
+      # Xavier weights and N(0, 1) biases for the linear layers.
+      def init_weights
+        @linear_layers.each do |layer|
+          Torch::NN::Init.xavier_uniform!(layer.weight)
+          Torch::NN::Init.normal!(layer.bias)
+        end
       end
     end
 
@@ -127,7 +136,9 @@ module LTNExamples
     # @parameter task [Symbol] :single (one-digit operands) or :multi (two-digit operands).
     # @parameter data [Hash, nil] {train: [images, labels], test: [images, labels]}, with images
     #   as uint8 n x 28 x 28 tensors; by default, MNIST.
-    def initialize(task: :single, seed: 2020, output: $stdout, data: nil)
+    # @parameter init_weights [Boolean] true to initialize the classifier as LTNtorch's example
+    #   does (about 48% test accuracy), false for PyTorch's defaults (about 98%).
+    def initialize(task: :single, seed: 2020, output: $stdout, data: nil, init_weights: true)
       @task = task
       @output = output
       LTNExamples.seed(seed)
@@ -138,7 +149,7 @@ module LTNExamples
       @test = additions(*data[:test], settings[:operands], settings[:test_examples])
 
       @digits = (1..settings[:operands]).map { |i| LTN::Variable.new("d_#{i}", Torch.arange(10)) }
-      @cnn = SingleDigitClassifier.new
+      @cnn = SingleDigitClassifier.new(init_weights: init_weights)
       @digit = LTN::Predicate.new(LogitsToPredicate.new(@cnn))
       @and = LTN::Connective.new(LTN::FuzzyOps::AndProd.new)
       @exists = LTN::Quantifier.new(LTN::FuzzyOps::AggregPMean.new(p: 2), :exists)
@@ -226,7 +237,13 @@ module LTNExamples
   end
 end
 
-task = (ARGV.first == "multi") ? :multi : :single
 if File.expand_path($PROGRAM_NAME) == File.expand_path(__FILE__)
-  LTNExamples.main(LTNExamples::SemiSupervisedPatternRecognition.new(task: task), __FILE__)
+  unknown = ARGV - %w[single multi --default-init]
+  abort "Unknown arguments: #{unknown.join(" ")}\nUsage: #{$PROGRAM_NAME} [single|multi] [--default-init]" if unknown.any?
+
+  example = LTNExamples::SemiSupervisedPatternRecognition.new(
+    task: ARGV.include?("multi") ? :multi : :single,
+    init_weights: !ARGV.include?("--default-init")
+  )
+  LTNExamples.main(example, __FILE__)
 end
