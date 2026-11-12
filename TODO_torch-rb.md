@@ -4,23 +4,23 @@ Issues in [torch.rb](https://github.com/ankane/torch.rb) found while porting LTN
 
 ## Status (2026-11-12)
 
-Fixed in `~/code/git/torch.rb`, one local branch per pull request, each a single commit on top of `upstream/master` (0.27.0) with tests and a changelog entry; none pushed yet:
+Fixed in `~/code/git/torch.rb`, one local branch per pull request, each a single commit on top of `upstream/master` (0.27.0) with tests and a changelog entry; pushed to `mtortonesi/torch.rb` and opened as pull requests on `ankane/torch.rb`:
 
-| Branch | Fixes | Notes |
-|---|---|---|
-| `fix-tensor-requires-grad-leaf` | 1 | Also re-enables `test_max`'s disabled assertion. |
-| `fix-scalar-overload-order` | 3 | Reorders 144 of 1,336 functions' overloads; numbers given for Tensor parameters (`x + 2`) become wrapped-number tensors, as in PyTorch, so results do not change. |
-| `fix-numeric-coerce` | 4 | |
-| `fix-randint-dtype` | 5 (`randint`) | Changes the dtype of existing calls: a minor version, or an issue first. |
-| `add-one-hot` | 5 (`one_hot`) | |
-| `norm-defaults` | 6 | |
-| `fix-list-defaults` | 7, 8 (found while fixing 6) | |
+| Branch | PR | Fixes | Notes |
+|---|---|---|---|
+| `fix-tensor-requires-grad-leaf` | [#77](https://github.com/ankane/torch.rb/pull/77) | 1 | Also re-enables `test_max`'s disabled assertion. |
+| `fix-scalar-overload-order` | [#78](https://github.com/ankane/torch.rb/pull/78) | 3 | Reorders 144 of 1,336 functions' overloads; numbers given for Tensor parameters (`x + 2`) become wrapped-number tensors, as in PyTorch, so results do not change. |
+| `fix-numeric-coerce` | [#79](https://github.com/ankane/torch.rb/pull/79) | 4 | |
+| `fix-randint-dtype` | [#80](https://github.com/ankane/torch.rb/pull/80) | 5 (`randint`) | Changes the dtype of existing calls: a minor version, or an issue first. |
+| `add-one-hot` | [#81](https://github.com/ankane/torch.rb/pull/81) | 5 (`one_hot`) | |
+| `norm-defaults` | [#82](https://github.com/ankane/torch.rb/pull/82) | 6 | |
+| `fix-list-defaults` | [#83](https://github.com/ankane/torch.rb/pull/83) | 7, 8 (found while fixing 6) | |
 
 Merged together (local branch `integration-check`, changelog conflicts only), they pass torch.rb's suite (409 tests) and LTNtorch-rb's (650 tests, plus the learning benchmark, with the same results). Without LTNtorch-rb's workarounds (`FuzzyOps.where`, tensor-first arithmetic), its parity tests fail 27 times on 0.27.0 and pass on the merged branches.
 
 Still to do:
 
-- Open the pull requests upstream (`ankane/torch.rb`): the changelog entries all add a `0.27.1 (unreleased)` section, so the second and later ones need rebasing as the first ones land.
+- Rebase the open pull requests as earlier ones land: their changelog entries all add a `0.27.1 (unreleased)` section.
 - Item 2: open an issue upstream (no code change planned).
 - After a release with the fixes: follow "Afterwards in LTNtorch-rb" in each section below.
 
